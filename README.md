@@ -80,8 +80,9 @@ bash deploy_outline.sh
 </div>
 
 ## 设置Outline管理员
-如果需要给特定用户设置管理员权限，可执行如下命令(假定用户邮箱为test@local.com)
+Outline默认第一个登录的用户为管理员，这个用户可以用Outline的用户设置给其他用户设置权限，但如果第一个登录的用户被删除，可执行如下命令配置(假定用户邮箱为test@local.com)
 ```
+cd $HOME/outline/outline_deploy
 docker-compose exec postgres psql -U outline -d outline
 UPDATE users SET role = 'admin' WHERE email = 'test@local.com';
 \q
