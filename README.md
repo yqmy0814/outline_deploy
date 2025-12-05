@@ -78,3 +78,12 @@ bash deploy_outline.sh
 <div align="center">
     <img src="image/后续步骤.png" width = 100% >
 </div>
+
+## 设置Outline管理员
+如果需要给特定用户设置管理员权限，可执行如下命令(假定用户邮箱为test@local.com)
+```
+docker-compose exec postgres psql -U outline -d outline
+UPDATE users SET role = 'admin' WHERE email = 'test@local.com';
+\q
+docker-compose restart outline-app
+```

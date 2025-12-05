@@ -391,7 +391,7 @@ echo -e "${BLUE}${BOLD}访问地址：${RESET}http://${HOST_IP}:${OUTLINE_PORT}"
 echo -e "${BLUE}${BOLD}登录方式：${RESET}使用刚才创建的Keycloak账号（如test/12345678）"
 echo -e ""
 
-# 步骤6：数据迁移
+# 数据迁移
 echo -e "${BOLD}注：数据迁移${RESET}"
 echo -e "📁 所有数据存储在 ./data 目录，如需迁移，将整个outline_deploy文件夹移动到新设备，按照实际情况修改.env的HOST_IP，并登录Keycloak对应修改Valid redirect URI和Web origins的网址即可恢复使用"
 echo -e "================================================"
