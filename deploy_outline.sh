@@ -310,7 +310,8 @@ else
     echo "⚠️  未检测到docker-compose命令，请先安装Docker Compose"
     echo -e "\n🔧 安装命令："
     echo "----------------------------------------"
-    echo "sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose"
+    echo "curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o docker-compose"
+    echo "sudo mv docker-compose /usr/local/bin/"
     echo "sudo chmod +x /usr/local/bin/docker-compose"
     echo "----------------------------------------"
     exit 1

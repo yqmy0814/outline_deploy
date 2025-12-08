@@ -26,7 +26,8 @@ sudo usermod -aG docker $USER
 2. docker-compose
 本项目要求docker-compose版本>=2.1.0，如果未安装，可按照下方指令安装最新版
 ```
-sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose
+curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o docker-compose
+sudo mv docker-compose /usr/local/bin/
 sudo chmod +x /usr/local/bin/docker-compose
 ```
 如果已经安装，可按照下方指令升级
