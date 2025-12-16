@@ -26,7 +26,8 @@ sudo usermod -aG docker $USER
 2. docker-compose
 本项目要求docker-compose版本>=2.1.0，如果未安装，可按照下方指令安装最新版
 ```
-sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose
+curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o docker-compose
+sudo mv docker-compose /usr/local/bin/
 sudo chmod +x /usr/local/bin/docker-compose
 ```
 如果已经安装，可按照下方指令升级
@@ -88,3 +89,135 @@ UPDATE users SET role = 'admin' WHERE email = 'test@local.com';
 \q
 docker-compose restart outline-app
 ```
+## 应对IP频繁发生变更的情况
+如果设备在局域网内的IP也会存在频繁变更的情况，可以通过mDNS服务（使用Avahi）广播域名IP实现固定域名访问。  
+1. 安装Avahi
+```
+sudo apt update
+sudo apt install avahi-daemon avahi-utils libnss-mdns -y
+```  
+2. 查看/修改主机名
+```
+# 查看当前主机名(Static hostname字段)
+hostnamectl
+# 如有需要，设置新名称（如"outline-server"）
+sudo hostnamectl set-hostname outline-server
+```
+3. 设置Avahi
+```
+sudo gedit /etc/avahi/avahi-daemon.conf
+```
+将use-ipv6修改为no，解除allow-interfaces的注释并修改为局域网使用的网卡名
+```
+# 启动Avahi
+sudo systemctl enable --now avahi-daemon
+# 验证IP地址是否正确
+avahi-resolve-host-name $(hostname).local
+```
+4. 创建广播服务
+```
+sudo gedit ~/outline/ip_monitor.sh
+```
+输入以下内容，**TARGET_INTERFACE修改为局域网使用的网卡名**，保存
+```
+#!/bin/bash
+
+# 配置参数
+OUTLINE_PORT=7730    # Outline服务端口
+ANNOUNCE_PORT=8000   # IP公告服务端口
+ANNOUNCE_INTERVAL=30 # IP检测间隔（秒）
+HOST_NAME=$(hostname).local
+TARGET_INTERFACE="eno1" # 指定要读取的网卡名
+
+get_current_ip() {
+  ip addr show "${TARGET_INTERFACE}" | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '^127\.' | head -n1
+}
+
+# 启动IP公告服务
+start_announce_server() {
+  echo "启动IP公告服务，端口：$ANNOUNCE_PORT..."
+  python3 -c "
+from http.server import BaseHTTPRequestHandler, HTTPServer
+class AnnounceHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'Outline: http://$HOST_NAME:$OUTLINE_PORT')
+    
+    # 禁用日志输出
+    def log_message(self, format, *args):
+        return
+
+server = HTTPServer(('0.0.0.0', $ANNOUNCE_PORT), AnnounceHandler)
+server.serve_forever()
+" &
+  ANNOUNCE_PID=$!
+  echo "IP公告服务已启动（PID：$ANNOUNCE_PID）"
+}
+
+# 检查当前IP是否变化
+check_ip_change() {
+  CURRENT_IP=$(get_current_ip)
+  if [ "$CURRENT_IP" != "$LAST_IP" ]; then
+    echo "IP变更：$LAST_IP → $CURRENT_IP"
+    LAST_IP=$CURRENT_IP
+    
+    # 重启公告服务，确保客户端获取最新IP
+    kill $ANNOUNCE_PID >/dev/null 2>&1
+    start_announce_server
+  fi
+}
+
+# 初始化
+LAST_IP=$(get_current_ip)
+# 校验网卡是否存在&是否获取到IP
+if [ -z "$LAST_IP" ]; then
+  echo "错误：未获取到${TARGET_INTERFACE}网卡的IPv4地址！"
+  echo "请检查网卡名是否正确（执行ip a查看），或网卡是否已分配IP"
+  exit 1
+fi
+start_announce_server
+
+# 主循环：定期检测IP变化
+echo "开始监控${TARGET_INTERFACE}网卡IP变动..."
+while true; do
+  check_ip_change
+  sleep $ANNOUNCE_INTERVAL
+done
+```
+配置开机自启
+```
+sudo chmod +x ~/outline/ip_monitor.sh
+sudo gedit ~/.config/autostart/ip_monitor.desktop
+```
+输入以下内容，保存
+```
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=mDNS Broadcast
+Comment=Broadcast IP
+Exec=$HOME/outline/ip_monitor.sh
+X-GNOME-Autostart-enabled=true
+Hidden=false
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-Delay=20
+```
+5. 修改Outline配置
+```
+gedit ~/outline/outline_deploy/.env
+```
+将HOST_IP修改为$(hostname).local  
+浏览器访问Keycloak，将outline realm的outline client的  
+Valid redirect URIs修改为http://主机名.local:7730/auth/oidc.callback  
+Web origins修改为http://主机名.local:7730  
+(参考脚本步骤3：配置Keycloak)
+6. 重启服务
+```
+cd $HOME/outline/outline_deploy
+docker-compose down
+docker-compose up -d
+```
+7. 访问Outline
+现在访问http://主机名.local:7730 就可以正常打开outline了，即使局域网IP发生变更也可以正常使用。
